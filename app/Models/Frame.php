@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Frame extends Model
+{
+     protected $fillable = [
+        'name',
+        'shape',
+        'frame_width',
+        'frame_height',
+        'aspect_ratio',
+        'polygon_sides',
+        'border_width',
+        'border_color',
+        'border_radius',
+        'thumbnail',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'border_width' => 'integer',
+        'border_radius' => 'integer',
+    ];
+}
