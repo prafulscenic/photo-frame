@@ -9,9 +9,12 @@ use Illuminate\Http\Request;
 
 class FrameApiController extends Controller
 {
-       public function index(): JsonResponse
+    public function index(): JsonResponse
     {
-        $frames = Frame::where('is_active', true)
+        $frames = Frame::with([
+                'texture:id,texture_path'
+            ])
+            ->where('is_active', true)
             ->orderBy('id', 'asc')
             ->get([
                 'id',
@@ -24,6 +27,8 @@ class FrameApiController extends Controller
                 'border_width',
                 'border_color',
                 'thumbnail',
+                'frame_texture',
+                'frame_texture_id',
                 'border_radius',
             ]);
 
@@ -32,4 +37,5 @@ class FrameApiController extends Controller
             'data' => $frames
         ]);
     }
+
 }

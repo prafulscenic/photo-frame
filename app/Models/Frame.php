@@ -17,12 +17,21 @@ class Frame extends Model
         'border_color',
         'border_radius',
         'thumbnail',
+        'frame_texture',
+        'frame_texture_id',
         'is_active',
-    ];
 
+    ];
     protected $casts = [
         'is_active' => 'boolean',
         'border_width' => 'integer',
         'border_radius' => 'integer',
     ];
+   public function texture()
+    {
+        return $this->belongsTo(FrameTexture::class, 'frame_texture_id');
+    }
+
+
+
 }

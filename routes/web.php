@@ -16,9 +16,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/list', [FrameController::class, 'list'])->name('list');
         Route::get('/{id}/edit', [FrameController::class, 'edit'])->name('edit');
         Route::post('/{id}/update', [FrameController::class, 'update'])->name('update');
+
     });
 
 });
+
+
+Route::get('/textures/create', [FrameController::class, 'createTextures'])->name('textures.create');
+Route::post('/textures/store', [FrameController::class, 'storeTextures'])->name('textures.store');
+Route::get('/textures/list', [FrameController::class, 'texturesList'])->name('textures.list');
 
 Route::get('/frames', function () {
     return view('frontend.frame-selector');
