@@ -25,19 +25,9 @@ const textureRadios     = document.querySelectorAll('.texture-radio');
 /* ===============================
    HELPERS
 ================================ */
-// function thicknessFromInput(v) {
-//     return Math.max((parseInt(v) || 5) * 3, 12);
-// }
-
 function thicknessFromInput(v) {
-    const n = parseInt(v);
-
-    if (isNaN(n)) return 12;   // fallback
-    if (n === 0) return 0;     //  real zero border
-
-    return Math.max(n * 3, 12);
+    return Math.max((parseInt(v) || 5) * 3, 12);
 }
-
 
 function sizeFromAspect(aspect, max = 260) {
     if (!aspect || !aspect.includes(':')) return { w: max, h: max };

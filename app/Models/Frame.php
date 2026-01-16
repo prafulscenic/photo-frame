@@ -32,6 +32,4 @@ class Frame extends Model
         return $this->belongsTo(FrameTexture::class, 'frame_texture_id');
     }
 
-
-
 }

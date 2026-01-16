@@ -13,12 +13,14 @@ fetch('/api/frames')
             col.style.cursor = 'pointer';
 
             col.innerHTML = `
+        
                 <div class="card frame-card">
                     <img src="/storage/${frame.thumbnail}" class="card-img-top">
                     <div class="card-body text-center p-2">
                         <strong>${frame.name}</strong>
                     </div>
                 </div>
+              
             `;
 
             col.onclick = () => loadFrame(frame);
@@ -39,10 +41,10 @@ let frameOuter = null;
 let frameInner = null;
 let matLayer = null;
 let currentImage = null;
+let currentFrameData = null;
 let frameTextureEl = null;
-
-let textObjects = [];
 let currentText = null;
+
 
 /* ===============================
    HELPERS
@@ -55,11 +57,25 @@ function sizeFromAspect(aspect, max = 320) {
         : { w: Math.round(max * aw / ah), h: max };
 }
 
+// function thicknessFromAPI(v, w, h) {
+//     const base = Math.max((parseInt(v) || 5) * 3, 12);
+//     return Math.min(base, Math.min(w, h) * 0.18);
+// }
+
+
 function thicknessFromAPI(v, w, h) {
     const n = parseInt(v);
+
+    // fallback (invalid / null)
     if (isNaN(n)) return Math.min(12, Math.min(w, h) * 0.18);
+
+    // 👈 real zero border
     if (n === 0) return 0;
+
+    // base thickness (same rule as admin)
     const base = Math.max(n * 3, 12);
+
+    // clamp so border never eats frame
     return Math.min(base, Math.min(w, h) * 0.18);
 }
 
@@ -74,79 +90,41 @@ function polygonPoints(radius, sides) {
 }
 
 function cloneClip() {
-    if (!frameInner) return null;
     const c = fabric.util.object.clone(frameInner);
-    c.set({
-        left: frameInner.left,
-        top: frameInner.top,
-        originX: frameInner.originX,
-        originY: frameInner.originY,
-        absolutePositioned: true
-    });
+    c.absolutePositioned = true;
     return c;
 }
 
 /* ===============================
-   LAYER CONTROL (CRITICAL)
-================================ */
-function enforceLayerOrder() {
-    if (frameOuter) frameOuter.sendToBack();
-    if (matLayer) matLayer.sendToBack();
-    if (currentImage) currentImage.bringToFront();
-    textObjects.forEach(t => t.bringToFront());
-    canvas.requestRenderAll();
-}
-
-function reclipAllTexts() {
-    textObjects.forEach(t => {
-        const clip = cloneClip();
-        t.set({
-            clipPath: clip
-        });
-
-        // 🔥 CRITICAL: force Fabric to refresh controls
-        t.initDimensions();
-        t.setCoords();
-    });
-}
-
-/* ===============================
-   CANVAS SELECTION (REGISTER ONCE)
-================================ */
-canvas.on('selection:created', e => {
-    if (e.target && e.target.type === 'textbox') {
-        currentText = e.target;
-        enforceLayerOrder();
-    }
-});
-
-canvas.on('selection:updated', e => {
-    if (e.target && e.target.type === 'textbox') {
-        currentText = e.target;
-        enforceLayerOrder();
-    }
-});
-
-canvas.on('selection:cleared', () => {
-    currentText = null;
-});
-
-/* ===============================
-   LOAD FRAME
+   LOAD FRAME (COLOR OR TEXTURE)
 ================================ */
 function loadFrame(frame) {
+    currentFrameData = frame;
+
+    // RESET EVERYTHING FIRST
     frameTextureEl = null;
 
+    // TEXTURE FRAME
     if (frame.frame_texture_id && frame.texture?.texture_path) {
         fabric.Image.fromURL('/storage/' + frame.texture.texture_path, img => {
             frameTextureEl = img.getElement();
             renderFrame(frame);
+            if (currentImage) {
+                fitImage(currentImage);
+                applyClip();
+            }
         });
         return;
     }
 
+    // COLOR FRAME (clean state)
     renderFrame(frame);
+    if (currentImage) {
+        fitImage(currentImage);
+        applyClip();
+    }
 }
+
 
 /* ===============================
    RENDER FRAME
@@ -156,10 +134,12 @@ function renderFrame(frame) {
     [frameOuter, frameInner, matLayer].forEach(o => o && canvas.remove(o));
     frameOuter = frameInner = matLayer = null;
 
-    const useTexture = !!frameTextureEl && frame.frame_texture_id;
-    const frameFill = useTexture
-        ? new fabric.Pattern({ source: frameTextureEl, repeat: 'repeat' })
-        : (frame.border_color || '#cfcfcf');
+const useTexture = !!frameTextureEl && frame.frame_texture_id;
+
+    let frameFill = useTexture
+    ? new fabric.Pattern({ source: frameTextureEl, repeat: 'repeat' })
+    : (frame.border_color || '#cfcfcf');
+
 
     const outerShadow = new fabric.Shadow({
         color: 'rgba(0,0,0,0.25)',
@@ -168,55 +148,11 @@ function renderFrame(frame) {
     });
 
     /* ================= RECTANGLE ================= */
-if (frame.shape === 'rectangle') {
+    if (frame.shape === 'rectangle') {
 
-    const { w: W, h: H } = sizeFromAspect(frame.aspect_ratio, 320);
-    const thickness = thicknessFromAPI(frame.border_width, W, H);
-    const radius = Math.min(frame.border_radius || 0, Math.min(W, H) / 2);
-
-    /* ===== ZERO BORDER ===== */
-    if (thickness === 0) {
-
-        frameOuter = new fabric.Rect({
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            width: W,
-            height: H,
-            rx: radius,
-            ry: radius,
-            fill: 'transparent',
-            selectable: false
-        });
-
-        matLayer = new fabric.Rect({
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            width: W,
-            height: H,
-            rx: radius,
-            ry: radius,
-            fill: '#f4f4f0',
-            selectable: false
-        });
-
-        frameInner = new fabric.Rect({
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            width: W,
-            height: H,
-            rx: radius,
-            ry: radius,
-            absolutePositioned: true
-        });
-
-    } else {
-        /* ===== NORMAL BORDER (UNCHANGED LOGIC) ===== */
+        const { w: W, h: H } = sizeFromAspect(frame.aspect_ratio, 320);
+        const thickness = thicknessFromAPI(frame.border_width, W, H);
+        const radius = Math.min(frame.border_radius || 0, Math.min(W, H) / 2);
 
         const outer = new fabric.Rect({
             width: W,
@@ -272,46 +208,13 @@ if (frame.shape === 'rectangle') {
             absolutePositioned: true
         });
     }
-}
 
     /* ================= CIRCLE ================= */
-if (frame.shape === 'circle') {
+    if (frame.shape === 'circle') {
 
-    const R = 160;
-    const thickness = thicknessFromAPI(frame.border_width, R * 2, R * 2);
+        const R = 160;
+        const thickness = thicknessFromAPI(frame.border_width, R * 2, R * 2);
 
-    if (thickness === 0) {
-
-        frameOuter = new fabric.Circle({
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            radius: R,
-            fill: 'transparent',
-            selectable: false
-        });
-
-        matLayer = new fabric.Circle({
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            radius: R,
-            fill: '#f4f4f0',
-            selectable: false
-        });
-
-        frameInner = new fabric.Circle({
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            radius: R,
-            absolutePositioned: true
-        });
-
-    } else {
 
         const outer = new fabric.Circle({
             radius: R,
@@ -346,62 +249,25 @@ if (frame.shape === 'circle') {
             selectable: false
         });
 
+          
         frameInner = new fabric.Circle({
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            radius: R - thickness * 1.4,
-            absolutePositioned: true
-        });
+                    left: CENTER,
+                    top: CENTER,
+                    originX: 'center',
+                    originY: 'center',
+                    radius: R,
+                    absolutePositioned: true
+                });
+
+      
     }
-}
 
     /* ================= POLYGON ================= */
-if (frame.shape === 'polygon') {
+    if (frame.shape === 'polygon') {
 
-    const sides = frame.polygon_sides || 6;
-    const R = 160;
-    const thickness = thicknessFromAPI(frame.border_width, R * 2, R * 2);
-
-    if (thickness === 0) {
-
-        frameOuter = new fabric.Polygon(
-            polygonPoints(R, sides),
-            {
-                left: CENTER,
-                top: CENTER,
-                originX: 'center',
-                originY: 'center',
-                fill: 'transparent',
-                selectable: false
-            }
-        );
-
-        matLayer = new fabric.Polygon(
-            polygonPoints(R, sides),
-            {
-                left: CENTER,
-                top: CENTER,
-                originX: 'center',
-                originY: 'center',
-                fill: '#f4f4f0',
-                selectable: false
-            }
-        );
-
-        frameInner = new fabric.Polygon(
-            polygonPoints(R, sides),
-            {
-                left: CENTER,
-                top: CENTER,
-                originX: 'center',
-                originY: 'center',
-                absolutePositioned: true
-            }
-        );
-
-    } else {
+        const sides = frame.polygon_sides || 6;
+        const R = 160;
+        const thickness = thicknessFromAPI(frame.border_width, R * 2, R * 2);
 
         const outer = new fabric.Polygon(
             polygonPoints(R, sides),
@@ -410,7 +276,8 @@ if (frame.shape === 'polygon') {
 
         const hole = new fabric.Polygon(
             polygonPoints(R - thickness, sides),
-            { originX: 'center', originY: 'center', globalCompositeOperation: 'destination-out' }
+            { originX: 'center', originY: 'center',
+              globalCompositeOperation: 'destination-out' }
         );
 
         frameOuter = new fabric.Group([outer, hole], {
@@ -445,52 +312,96 @@ if (frame.shape === 'polygon') {
             }
         );
     }
-}
 
     canvas.add(frameOuter);
     canvas.add(matLayer);
 
+    // Always push frame parts to back
     frameOuter.sendToBack();
     matLayer.sendToBack();
 
+    // 🔴 IMPORTANT: bring image back above mat
     if (currentImage) {
         currentImage.bringToFront();
-        applyClip();
     }
 
-// 🔥 force canvas to settle objects first
-canvas.renderAll();
+    // 🔴 IMPORTANT: text always top
+    if (currentText) {
+        currentText.bringToFront();
+        currentText.clipPath = cloneClip();
+    }
 
-// 🔥 now safely re-apply clips
-reclipAllTexts();
+    addInnerShadow(frame);
 
-// 🔥 enforce correct z-index
-enforceLayerOrder();
+    canvas.renderAll();
+}
 
+/* ===============================
+   INNER SHADOW (NO CIRCLE BUG)
+================================ */
+function addInnerShadow(frame) {
+    if (!frameInner) return;
+    if (frame.shape === 'circle') return;
+
+    const innerShadow = fabric.util.object.clone(frameInner);
+    innerShadow.fill = 'transparent';
+    innerShadow.shadow = new fabric.Shadow({
+        color: 'rgba(0,0,0,0.22)',
+        blur: 12,
+        offsetY: 3
+    });
+    innerShadow.selectable = false;
+    innerShadow.evented = false;
+
+    canvas.add(innerShadow);
 }
 
 /* ===============================
    IMAGE UPLOAD
 ================================ */
-document.getElementById('imageUpload')?.addEventListener('change', e => {
+document.getElementById('imageUpload').addEventListener('change', e => {
     const file = e.target.files[0];
     if (!file || !frameInner) return;
 
     const reader = new FileReader();
     reader.onload = () => {
         fabric.Image.fromURL(reader.result, img => {
+
             if (currentImage) canvas.remove(currentImage);
+
             currentImage = img;
-            img.set({ left: CENTER, top: CENTER, originX: 'center', originY: 'center', selectable: true });
+            img.set({
+                left: CENTER,
+                top: CENTER,
+                originX: 'center',
+                originY: 'center',
+                selectable: true,
+                cornerStyle: 'circle',
+                cornerSize: 12,
+                cornerColor: '#ffffff',
+                borderColor: '#2563eb',
+                transparentCorners: false
+            });
+
+            img.setControlsVisibility({
+                mt: false, mb: false, ml: false, mr: false, mtr: false
+            });
+
+            img.lockUniScaling = true;
+
             canvas.add(img);
+            canvas.setActiveObject(img);
+
             fitImage(img);
             applyClip();
-            enforceLayerOrder();
         });
     };
     reader.readAsDataURL(file);
 });
 
+/* ===============================
+   IMAGE FIT & CLIP
+================================ */
 function fitImage(img) {
     const b = frameInner.getBoundingRect();
     const scale = Math.max(b.width / img.width, b.height / img.height);
@@ -498,25 +409,47 @@ function fitImage(img) {
 }
 
 function applyClip() {
-    if (!currentImage || !frameInner) return;
     currentImage.clipPath = cloneClip();
+    canvas.renderAll();
 }
-
-// Get currently active text object
-function getActiveText() {
-    const obj = canvas.getActiveObject();
-    if (obj && obj.type === 'textbox') {
-        return obj;
-    }
-    return null;
-}
-
 
 /* ===============================
-   ADD TEXT (MULTI TEXT SAFE)
-================================ */
+   DOWNLOAD
+// ================================ */
+
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    const b = frameOuter.getBoundingRect(true, true);
+
+    const url = canvas.toDataURL({
+        format: 'png',
+        left: b.left,
+        top: b.top,
+        width: b.width,
+        height: b.height,
+        multiplier: 2,
+    });
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'photo-frame.png';
+    a.click();
+});
+
+
+
+
 document.getElementById('addTextBtn')?.addEventListener('click', () => {
-    if (!frameInner) return alert('Select frame first');
+
+    if (!frameInner) {
+        alert('Please select a frame first');
+        return;
+    }
+
+    // remove old text (optional – keeps single text)
+    if (currentText) {
+        canvas.remove(currentText);
+    }
 
     const text = new fabric.Textbox('Your Text', {
         left: CENTER,
@@ -525,83 +458,51 @@ document.getElementById('addTextBtn')?.addEventListener('click', () => {
         originY: 'center',
         width: frameInner.getBoundingRect().width * 0.8,
         fontSize: 32,
-        fill: '#000',
-        fontFamily: 'Poppins',
+        fill: '#000000',
         textAlign: 'center',
+        editable: true,
+
+        // UX
+        cornerStyle: 'circle',
+        cornerSize: 12,
+        cornerColor: '#ffffff',
+        borderColor: '#2563eb',
+        transparentCorners: false,
         selectable: true
     });
 
+    // ONLY 4 CORNERS
+    text.setControlsVisibility({
+        mt: false,
+        mb: false,
+        ml: false,
+        mr: false,
+        mtr: false
+    });
+    
+
+    // KEEP ASPECT
     text.lockUniScaling = true;
+
+    // 🔥 CLIP TEXT INSIDE FRAME
     text.clipPath = cloneClip();
 
-    textObjects.push(text);
     currentText = text;
-
     canvas.add(text);
     canvas.setActiveObject(text);
-    enforceLayerOrder();
+
+    // Keep order: frame → image → text
+    if (frameOuter) frameOuter.sendToBack();
+    if (matLayer) matLayer.sendToBack();
+    if (currentImage) currentImage.bringToFront();
+   if (currentText) currentText.bringToFront();
+
+
+    canvas.renderAll();
 });
 
-/* ===============================
-   TEXT STYLING
-================================ */
 document.getElementById('textColorPicker')?.addEventListener('input', function () {
-    const text = getActiveText();
-    if (!text) return;
-
-    text.set('fill', this.value);
-    canvas.requestRenderAll();
-});
-
-
-document.getElementById('fontFamilySelect')?.addEventListener('change', async function () {
-    const text = getActiveText();
-    if (!text) return;
-
-    const font = this.value;
-    await document.fonts.load(`32px "${font}"`);
-
-    text.set({ fontFamily: font });
-    text.initDimensions();
-    text.setCoords();
-
-    canvas.requestRenderAll();
-});
-
-/* ===============================
-   DELETE TEXT
-================================ */
-document.addEventListener('keydown', e => {
-    const text = getActiveText();
-    if (e.key === 'Delete' && text) {
-        canvas.remove(text);
-        textObjects = textObjects.filter(t => t !== text);
-        canvas.requestRenderAll();
-    }
-});
-
-/* ===============================
-   DOWNLOAD
-================================ */
-document.getElementById('downloadBtn').addEventListener('click', () => {
-    const b = frameOuter.getBoundingRect(true, true);
-
-    const prevShadow = frameOuter.shadow;
-    frameOuter.shadow = null;
-
-    const url = canvas.toDataURL({
-        format: 'png',
-        left: b.left,
-        top: b.top,
-        width: b.width,
-        height: b.height,
-        multiplier: 2
-    });
-
-    frameOuter.shadow = prevShadow;
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'photo-frame.png';
-    a.click();
+    if (!currentText) return;
+    currentText.set('fill', this.value);
+    canvas.renderAll();
 });

@@ -15,7 +15,7 @@ class FrameApiController extends Controller
                 'texture:id,texture_path'
             ])
             ->where('is_active', true)
-            ->orderBy('id', 'asc')
+            ->orderBy('id', 'desc')
             ->get([
                 'id',
                 'name',

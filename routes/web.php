@@ -28,4 +28,8 @@ Route::get('/textures/list', [FrameController::class, 'texturesList'])->name('te
 
 Route::get('/frames', function () {
     return view('frontend.frame-selector');
+})->name('frontend.frame-selector');
+
+Route::get('/wall', function () {
+    return view('image-test');
 });

@@ -1,3 +1,32 @@
+/* ===============================
+   LOAD FRAMES (THUMBNAILS)
+================================ */
+fetch('/api/frames')
+    .then(res => res.json())
+    .then(result => {
+        const container = document.getElementById('frameList');
+        container.innerHTML = '';
+
+        result.data.forEach(frame => {
+            const col = document.createElement('div');
+            col.className = 'col-6';
+            col.style.cursor = 'pointer';
+
+            col.innerHTML = `
+        
+                <div class="card frame-card">
+                    <img src="/storage/${frame.thumbnail}" class="card-img-top">
+                    <div class="card-body text-center p-2">
+                        <strong>${frame.name}</strong>
+                    </div>
+                </div>
+              
+            `;
+
+            col.onclick = () => loadFrame(frame);
+            container.appendChild(col);
+        });
+    });
 
 /* ===============================
    CANVAS SETUP
@@ -10,140 +39,196 @@ const CENTER = 200;
 
 let frameOuter = null;
 let frameInner = null;
+let matLayer = null;
 let currentImage = null;
 let currentFrameData = null;
+let frameTextureEl = null;
 let currentText = null;
 
-let frameImage = null; // NEW (PNG frame)
-
-
 
 /* ===============================
-   LOAD FRAMES (THUMBNAILS)
+   HELPERS
 ================================ */
-fetch('/api/frames')
-  .then(res => res.json())
-  .then(result => {
-    const container = document.getElementById('frameList');
-    container.innerHTML = '';
+function sizeFromAspect(aspect, max = 320) {
+    if (!aspect || !aspect.includes(':')) return { w: max, h: max };
+    const [aw, ah] = aspect.split(':').map(Number);
+    return aw >= ah
+        ? { w: max, h: Math.round(max * ah / aw) }
+        : { w: Math.round(max * aw / ah), h: max };
+}
 
-    result.data.forEach(frame => {
-      const col = document.createElement('div');
-      col.className = 'col-md-3 mb-3';
+function thicknessFromAPI(v, w, h) {
+    const base = Math.max((parseInt(v) || 5) * 3, 12);
+    return Math.min(base, Math.min(w, h) * 0.18);
+}
 
-      col.innerHTML = `
-        <div class="card frame-card">
-          <img src="/storage/${frame.thumbnail}" class="card-img-top">
-          <div class="card-body text-center">
-            <strong>${frame.name}</strong>
-          </div>
-        </div>
-      `;
+function polygonPoints(radius, sides) {
+    const pts = [];
+    const step = (Math.PI * 2) / sides;
+    for (let i = 0; i < sides; i++) {
+        const a = step * i - Math.PI / 2;
+        pts.push({ x: radius * Math.cos(a), y: radius * Math.sin(a) });
+    }
+    return pts;
+}
 
-      col.onclick = () => {
-        currentFrameData = frame;
-        renderFrame(frame);
+function cloneClip() {
+    const c = fabric.util.object.clone(frameInner);
+    c.absolutePositioned = true;
+    return c;
+}
 
-        if (currentImage) {
-          fitImageToFrame(currentImage);
-          applyClip();
-        }
-      };
-
-      container.appendChild(col);
-    });
-  });
-
-
-
-
-
-  
 /* ===============================
-   RENDER FRAME (SAFE)
+   LOAD FRAME (COLOR OR TEXTURE)
 ================================ */
-function renderFrame(frame) {
+function loadFrame(frame) {
+    currentFrameData = frame;
 
-    // ✅ REMOVE ONLY FRAME OBJECTS
-    if (frameOuter) canvas.remove(frameOuter);
-    if (frameInner) canvas.remove(frameInner);
+    // RESET EVERYTHING FIRST
+    frameTextureEl = null;
 
-    frameOuter = null;
-    frameInner = null;
+    // TEXTURE FRAME
+    if (frame.frame_texture_id && frame.texture?.texture_path) {
+        fabric.Image.fromURL('/storage/' + frame.texture.texture_path, img => {
+            frameTextureEl = img.getElement();
+            renderFrame(frame);
+            if (currentImage) {
+                fitImage(currentImage);
+                applyClip();
+            }
+        });
+        return;
+    }
 
-    const bw = frame.border_width;
-    const color = frame.border_color;
-
-    /* ---------- RECTANGLE ---------- */
-  if (frame.shape === 'rectangle') {
-
-    const ratioValue = frame.aspect_ratio || '1:1';
-    const { w: rw, h: rh } = parseAspectRatio(ratioValue);
-
-    const maxSize = 300;
-
-    const scale = Math.min(
-        maxSize / rw,
-        maxSize / rh
-    );
-
-    const w = rw * scale;
-    const h = rh * scale;
-
-    const radius = Math.min(
-        frame.border_radius || 0,
-        Math.min(w, h) / 2
-    );
-
-    frameOuter = new fabric.Rect({
-        left: CENTER,
-        top: CENTER,
-        originX: 'center',
-        originY: 'center',
-        width: w,
-        height: h,
-        rx: radius,
-        ry: radius,
-        fill: 'transparent',
-        stroke: color,
-        strokeWidth: bw,
-        selectable: false,
-        evented: false
-    });
-
-    frameInner = new fabric.Rect({
-        left: CENTER,
-        top: CENTER,
-        originX: 'center',
-        originY: 'center',
-        width: w - (bw * 2),
-        height: h - (bw * 2),
-        rx: Math.max(radius - bw, 0),
-        ry: Math.max(radius - bw, 0),
-        absolutePositioned: true
-    });
-
-        
+    // COLOR FRAME (clean state)
+    renderFrame(frame);
+    if (currentImage) {
+        fitImage(currentImage);
+        applyClip();
+    }
 }
 
 
+/* ===============================
+   RENDER FRAME
+================================ */
+function renderFrame(frame) {
+
+    [frameOuter, frameInner, matLayer].forEach(o => o && canvas.remove(o));
+    frameOuter = frameInner = matLayer = null;
+
+const useTexture = !!frameTextureEl && frame.frame_texture_id;
+
+    let frameFill = useTexture
+    ? new fabric.Pattern({ source: frameTextureEl, repeat: 'repeat' })
+    : (frame.border_color || '#cfcfcf');
 
 
-    /* ---------- CIRCLE ---------- */
-    if (frame.shape === 'circle') {
-        const radius = 150;
+    const outerShadow = new fabric.Shadow({
+        color: 'rgba(0,0,0,0.25)',
+        blur: 18,
+        offsetY: 8
+    });
 
-        frameOuter = new fabric.Circle({
+    /* ================= RECTANGLE ================= */
+    if (frame.shape === 'rectangle') {
+
+        const { w: W, h: H } = sizeFromAspect(frame.aspect_ratio, 320);
+        const thickness = thicknessFromAPI(frame.border_width, W, H);
+        const radius = Math.min(frame.border_radius || 0, Math.min(W, H) / 2);
+
+        const outer = new fabric.Rect({
+            width: W,
+            height: H,
+            rx: radius,
+            ry: radius,
+            originX: 'center',
+            originY: 'center',
+            fill: frameFill
+        });
+
+        const hole = new fabric.Rect({
+            width: W - thickness * 2,
+            height: H - thickness * 2,
+            rx: Math.max(radius - thickness, 0),
+            ry: Math.max(radius - thickness, 0),
+            originX: 'center',
+            originY: 'center',
+            globalCompositeOperation: 'destination-out'
+        });
+
+        frameOuter = new fabric.Group([outer, hole], {
             left: CENTER,
             top: CENTER,
             originX: 'center',
             originY: 'center',
-            radius: radius,
-            fill: 'transparent',
-            stroke: color,
-            strokeWidth: bw,
             selectable: false,
-            evented: false
+            shadow: outerShadow
+        });
+
+        matLayer = new fabric.Rect({
+            left: CENTER,
+            top: CENTER,
+            originX: 'center',
+            originY: 'center',
+            width: W - thickness * 1.4,
+            height: H - thickness * 1.4,
+            rx: Math.max(radius - thickness * 0.7, 0),
+            ry: Math.max(radius - thickness * 0.7, 0),
+            fill: '#f4f4f0',
+            selectable: false
+        });
+
+        frameInner = new fabric.Rect({
+            left: CENTER,
+            top: CENTER,
+            originX: 'center',
+            originY: 'center',
+            width: W - thickness * 2.8,
+            height: H - thickness * 2.8,
+            rx: Math.max(radius - thickness * 1.4, 0),
+            ry: Math.max(radius - thickness * 1.4, 0),
+            absolutePositioned: true
+        });
+    }
+
+    /* ================= CIRCLE ================= */
+    if (frame.shape === 'circle') {
+
+        const R = 160;
+        const thickness = thicknessFromAPI(frame.border_width, R * 2, R * 2);
+
+        const outer = new fabric.Circle({
+            radius: R,
+            originX: 'center',
+            originY: 'center',
+            fill: frameFill
+        });
+
+        const hole = new fabric.Circle({
+            radius: R - thickness,
+            originX: 'center',
+            originY: 'center',
+            globalCompositeOperation: 'destination-out'
+        });
+
+        frameOuter = new fabric.Group([outer, hole], {
+            left: CENTER,
+            top: CENTER,
+            originX: 'center',
+            originY: 'center',
+            selectable: false,
+            shadow: outerShadow
+        });
+
+        matLayer = new fabric.Circle({
+            left: CENTER,
+            top: CENTER,
+            originX: 'center',
+            originY: 'center',
+            radius: R - thickness * 0.7,
+            fill: '#f4f4f0',
+            selectable: false
         });
 
         frameInner = new fabric.Circle({
@@ -151,77 +236,127 @@ function renderFrame(frame) {
             top: CENTER,
             originX: 'center',
             originY: 'center',
-            radius: radius - bw,
+            radius: R - thickness * 1.4,
             absolutePositioned: true
         });
     }
 
-
-    /* ---------- POLYGON ---------- */
+    /* ================= POLYGON ================= */
     if (frame.shape === 'polygon') {
-        const sides = parseInt(frame.polygon_sides || 6);
-        const radius = 150;
-        const bw = frame.border_width;
 
-        const outerPoints = generatePolygonPoints(radius, sides);
+        const sides = frame.polygon_sides || 6;
+        const R = 160;
+        const thickness = thicknessFromAPI(frame.border_width, R * 2, R * 2);
 
-        frameOuter = new fabric.Polygon(outerPoints, {
+        const outer = new fabric.Polygon(
+            polygonPoints(R, sides),
+            { originX: 'center', originY: 'center', fill: frameFill }
+        );
+
+        const hole = new fabric.Polygon(
+            polygonPoints(R - thickness, sides),
+            { originX: 'center', originY: 'center',
+              globalCompositeOperation: 'destination-out' }
+        );
+
+        frameOuter = new fabric.Group([outer, hole], {
             left: CENTER,
             top: CENTER,
             originX: 'center',
             originY: 'center',
-            fill: 'transparent',
-            stroke: frame.border_color,
-            strokeWidth: bw,
             selectable: false,
-            evented: false
+            shadow: outerShadow
         });
 
-        const innerPoints = generatePolygonPoints(radius - bw, sides);
+        matLayer = new fabric.Polygon(
+            polygonPoints(R - thickness * 0.7, sides),
+            {
+                left: CENTER,
+                top: CENTER,
+                originX: 'center',
+                originY: 'center',
+                fill: '#f4f4f0',
+                selectable: false
+            }
+        );
 
-        frameInner = new fabric.Polygon(innerPoints, {
-            left: CENTER,
-            top: CENTER,
-            originX: 'center',
-            originY: 'center',
-            absolutePositioned: true
-        });
+        frameInner = new fabric.Polygon(
+            polygonPoints(R - thickness * 1.4, sides),
+            {
+                left: CENTER,
+                top: CENTER,
+                originX: 'center',
+                originY: 'center',
+                absolutePositioned: true
+            }
+        );
     }
 
     canvas.add(frameOuter);
+    canvas.add(matLayer);
+
+    // Always push frame parts to back
     frameOuter.sendToBack();
+    matLayer.sendToBack();
 
-    if (currentImage) applyClip();
-
-    if (currentText) {
-        currentText.clipPath = frameInner;
+    // 🔴 IMPORTANT: bring image back above mat
+    if (currentImage) {
+        currentImage.bringToFront();
     }
 
+    // 🔴 IMPORTANT: text always top
+    if (currentText) {
+        currentText.bringToFront();
+        currentText.clipPath = cloneClip();
+    }
+
+    addInnerShadow(frame);
 
     canvas.renderAll();
 }
 
+/* ===============================
+   INNER SHADOW (NO CIRCLE BUG)
+================================ */
+function addInnerShadow(frame) {
+    if (!frameInner) return;
+    if (frame.shape === 'circle') return;
+
+    const innerShadow = fabric.util.object.clone(frameInner);
+    innerShadow.fill = 'transparent';
+    innerShadow.shadow = new fabric.Shadow({
+        color: 'rgba(0,0,0,0.22)',
+        blur: 12,
+        offsetY: 3
+    });
+    innerShadow.selectable = false;
+    innerShadow.evented = false;
+
+    canvas.add(innerShadow);
+}
 
 /* ===============================
    IMAGE UPLOAD
 ================================ */
-document.getElementById('imageUpload').addEventListener('change', function (e) {
+document.getElementById('imageUpload').addEventListener('change', e => {
     const file = e.target.files[0];
     if (!file || !frameInner) return;
 
     const reader = new FileReader();
     reader.onload = () => {
-        fabric.Image.fromURL(reader.result, (img) => {
+        fabric.Image.fromURL(reader.result, img => {
 
             if (currentImage) canvas.remove(currentImage);
 
+            currentImage = img;
             img.set({
+                left: CENTER,
+                top: CENTER,
                 originX: 'center',
                 originY: 'center',
                 selectable: true,
-                hasControls: true,
-                hasBorders: true,
                 cornerStyle: 'circle',
+                cornerSize: 12,
                 cornerColor: '#ffffff',
                 borderColor: '#2563eb',
                 transparentCorners: false
@@ -231,106 +366,92 @@ document.getElementById('imageUpload').addEventListener('change', function (e) {
                 mt: false, mb: false, ml: false, mr: false, mtr: false
             });
 
-            currentImage = img;
-            canvas.add(currentImage);
-            canvas.setActiveObject(currentImage);
+            img.lockUniScaling = true;
 
-            fitImageToFrame(img);
+            canvas.add(img);
+            canvas.setActiveObject(img);
+
+            fitImage(img);
             applyClip();
         });
     };
-
     reader.readAsDataURL(file);
 });
 
 /* ===============================
-   FIT IMAGE INTO FRAME
+   IMAGE FIT & CLIP
 ================================ */
-function fitImageToFrame(img) {
-    let fw, fh;
-
-    if (frameInner.type === 'circle') {
-        fw = fh = frameInner.radius * 2;
-    } 
-    else if (frameInner.type === 'polygon') {
-        fw = fh = (150 - currentFrameData.border_width) * 2;
-    } 
-    else {
-        fw = frameInner.width;
-        fh = frameInner.height;
-    }
-
-    const scale = Math.min(fw / img.width, fh / img.height);
-
-    img.set({
-        scaleX: scale,
-        scaleY: scale,
-        left: frameInner.left,
-        top: frameInner.top
-    });
+function fitImage(img) {
+    const b = frameInner.getBoundingRect();
+    const scale = Math.max(b.width / img.width, b.height / img.height);
+    img.set({ scaleX: scale, scaleY: scale });
 }
 
-
-/* ===============================
-   APPLY CLIP
-================================ */
 function applyClip() {
-    if (!currentImage || !frameInner) return;
-    currentImage.clipPath = frameInner;
+    currentImage.clipPath = cloneClip();
     canvas.renderAll();
 }
 
-function generatePolygonPoints(radius, sides) {
-    const points = [];
-    const step = (Math.PI * 2) / sides;
-
-    for (let i = 0; i < sides; i++) {
-        const angle = step * i - Math.PI / 2;
-        points.push({
-            x: radius * Math.cos(angle),
-            y: radius * Math.sin(angle)
-        });
-    }
-
-    return points;
-}
-
 /* ===============================
-   Add Text
+   DOWNLOAD
 ================================ */
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    const b = frameOuter.getBoundingRect(true, true);
 
-document.getElementById('addTextBtn').addEventListener('click', function () {
+    const prevShadow = frameOuter.shadow;
+     frameOuter.shadow = null;
+
+    const url = canvas.toDataURL({
+        format: 'png',
+        left: b.left,
+        top: b.top,
+        width: b.width,
+        height: b.height,
+        multiplier: 2
+    });
+
+    frameOuter.shadow = prevShadow;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'photo-frame.png';
+    a.click();
+});
+
+
+document.getElementById('addTextBtn')?.addEventListener('click', () => {
+
     if (!frameInner) {
         alert('Please select a frame first');
         return;
     }
 
-    // Remove old text if needed (optional)
+    // remove old text (optional – keeps single text)
     if (currentText) {
         canvas.remove(currentText);
     }
 
     const text = new fabric.Textbox('Your Text', {
-        left: frameInner.left,
-        top: frameInner.top,
+        left: CENTER,
+        top: CENTER,
         originX: 'center',
         originY: 'center',
-        width: frameInner.type === 'circle'
-            ? frameInner.radius * 1.5
-            : frameInner.width * 0.8,
-
+        width: frameInner.getBoundingRect().width * 0.8,
         fontSize: 32,
         fill: '#000000',
         textAlign: 'center',
         editable: true,
 
+        // UX
         cornerStyle: 'circle',
+        cornerSize: 12,
         cornerColor: '#ffffff',
         borderColor: '#2563eb',
-        transparentCorners: false
+        transparentCorners: false,
+        selectable: true
     });
 
-    // Only 4 corner resize
+    // ONLY 4 CORNERS
     text.setControlsVisibility({
         mt: false,
         mb: false,
@@ -338,93 +459,30 @@ document.getElementById('addTextBtn').addEventListener('click', function () {
         mr: false,
         mtr: false
     });
+    
 
-    // 🔥 IMPORTANT: clip text inside frame
-    text.clipPath = frameInner;
+    // KEEP ASPECT
+    text.lockUniScaling = true;
+
+    // 🔥 CLIP TEXT INSIDE FRAME
+    text.clipPath = cloneClip();
 
     currentText = text;
-    canvas.add(currentText);
-    canvas.setActiveObject(currentText);
+    canvas.add(text);
+    canvas.setActiveObject(text);
 
-    // Ensure text is above image
-    if (currentImage) currentImage.sendToBack();
-    frameOuter.sendToBack();
+    // Keep order: frame → image → text
+    if (frameOuter) frameOuter.sendToBack();
+    if (matLayer) matLayer.sendToBack();
+    if (currentImage) currentImage.bringToFront();
+   if (currentText) currentText.bringToFront();
+
 
     canvas.renderAll();
 });
 
-document.getElementById('textColorPicker').addEventListener('input', function () {
+document.getElementById('textColorPicker')?.addEventListener('input', function () {
     if (!currentText) return;
-
     currentText.set('fill', this.value);
     canvas.renderAll();
 });
-
-
-
-
-/* ===============================
-   DOWNLOAD PNG
-================================ */
-document.getElementById('downloadBtn').addEventListener('click', function () {
-    if (!frameOuter || !currentFrameData) {
-        alert('Please select a frame');
-        return;
-    }
-
-    canvas.discardActiveObject();
-    canvas.renderAll();
-
-    const bw = currentFrameData.border_width;
-    let left, top, width, height;
-
-    /* ---------- RECTANGLE ---------- */
-    if (currentFrameData.shape === 'rectangle') {
-        const bounds = frameOuter.getBoundingRect(true, true);
-        left = bounds.left - bw;
-        top = bounds.top - bw;
-        width = bounds.width + (bw * 2);
-        height = bounds.height + (bw * 2);
-    }
-
-    /* ---------- CIRCLE ---------- */
-    else if (currentFrameData.shape === 'circle') {
-        left = frameOuter.left - frameOuter.radius - bw;
-        top = frameOuter.top - frameOuter.radius - bw;
-        width = (frameOuter.radius * 2) + (bw * 2);
-        height = width;
-    }
-
-    /* ---------- POLYGON ---------- */
-    else if (currentFrameData.shape === 'polygon') {
-        const bounds = frameOuter.getBoundingRect(true, true);
-        left = bounds.left - bw;
-        top = bounds.top - bw;
-        width = bounds.width + (bw * 2);
-        height = bounds.height + (bw * 2);
-    }
-
-    const dataURL = canvas.toDataURL({
-        format: 'png',
-        left,
-        top,
-        width,
-        height,
-        multiplier: 2
-    });
-
-    const a = document.createElement('a');
-    a.href = dataURL;
-    a.download = 'photo-frame.png';
-    a.click();
-});
-
-
-
-function parseAspectRatio(ratio) {
-    const [w, h] = ratio.split(':').map(Number);
-    return { w, h };
-}
-
-
-

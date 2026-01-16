@@ -9,6 +9,10 @@
 
     <!-- Fabric.js -->
     <script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+
+
 </head>
 <body>
 
@@ -93,7 +97,7 @@
     </div>
 
 </div> --}}
-
+@include('header')
 <div class="container py-5">
 
     <!-- Header -->
@@ -136,19 +140,40 @@
                         </div>
 
                         <!-- Add Text -->
-                        <div class="col-12">
-                            <label class="form-label fw-semibold">Text Options</label>
-                            <div class="d-flex gap-2">
-                                <button id="addTextBtn" class="btn btn-primary flex-grow-1">
-                                    Add Text
+                       <div class="col-12">
+                            <label class="form-label fw-semibold mb-2">Text Options</label>
+
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                <!-- Add Text Button -->
+                                <button id="addTextBtn"
+                                        class="btn btn-primary px-4">
+                                    <i class="bi bi-plus-lg me-1"></i> Add Text
                                 </button>
 
-                                <input type="color"
-                                       id="textColorPicker"
-                                       class="form-control form-control-color"
-                                       title="Text Color" value="#000000">
+                                <!-- Text Color Picker -->
+                                <div class="d-flex align-items-center gap-1">
+                                    <small class="text-muted">Color</small>
+                                    <input type="color"
+                                        id="textColorPicker"
+                                        class="form-control form-control-color"
+                                        title="Text Color"
+                                        value="#000000">
+                                </div>
+
+                                <!-- Font Family Select -->
+                                <div class="flex-grow-1">
+                                    <select id="fontFamilySelect" class="form-select">
+                                        <option value="">Font Family</option>
+                                        <option value="Poppins">Poppins</option>
+                                        <option value="Playfair Display">Playfair Display</option>
+                                        <option value="Dancing Script">Dancing Script</option>
+                                    </select>
+                                </div>
+
                             </div>
                         </div>
+
 
                         <!-- Download -->
                         <div class="col-12">
@@ -190,6 +215,8 @@
 </div>
 
 
+
+{{-- <script src="{{asset('js/new-editor.js')}}"></script> --}}
 <script src="{{asset('js/new-editor.js')}}"></script>
 
 </body>

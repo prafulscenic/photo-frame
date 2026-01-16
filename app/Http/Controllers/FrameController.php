@@ -84,7 +84,7 @@ class FrameController extends Controller
             'polygon_sides'     => 'nullable|integer|min:3',
             'aspect_ratio'      => 'nullable|string|max:10',
 
-            'border_width'      => 'required|integer|min:1',
+            'border_width'      => 'required|integer',
             'border_radius'     => 'nullable|integer|min:0',
 
             // STYLE TYPE
