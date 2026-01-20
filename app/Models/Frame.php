@@ -9,6 +9,7 @@ class Frame extends Model
      protected $fillable = [
         'name',
         'shape',
+        'frame_type',
         'frame_width',
         'frame_height',
         'aspect_ratio',
@@ -19,6 +20,7 @@ class Frame extends Model
         'thumbnail',
         'frame_texture',
         'frame_texture_id',
+        'svg_path',
         'is_active',
 
     ];

@@ -80,7 +80,11 @@ class FrameController extends Controller
         // dd($request->all());
         $request->validate([
             'name'              => 'required|string|max:255',
-            'shape'             => 'required|in:rectangle,circle,polygon',
+            'shape'             => 'nullable|in:rectangle,circle,polygon',
+
+            'frame_type'        => 'nullable|string|max:100',
+            'svg_path'          => 'nullable|string|max:255',
+
             'polygon_sides'     => 'nullable|integer|min:3',
             'aspect_ratio'      => 'nullable|string|max:10',
 
@@ -88,7 +92,7 @@ class FrameController extends Controller
             'border_radius'     => 'nullable|integer|min:0',
 
             // STYLE TYPE
-            'frame_style_type'  => 'required|in:color,texture',
+            'frame_style_type'  => 'nullable|in:color,texture',
 
             // COLOR MODE
             'border_color'      => 'required_if:frame_style_type,color|nullable|string|max:20',
@@ -96,7 +100,7 @@ class FrameController extends Controller
             // TEXTURE MODE
             'frame_texture_id'  => 'required_if:frame_style_type,texture|nullable|exists:frame_textures,id',
 
-            'thumbnail'     => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'thumbnail'     => 'nullable|mimes:jpg,jpeg,png,webp,svg|max:2048',
             'is_active'         => 'nullable|boolean',
         ]);
 
@@ -108,6 +112,10 @@ class FrameController extends Controller
             if ($request->hasFile('thumbnail')) {
                 $thumbnailPath = $request->file('thumbnail')
                     ->store('frames', 'public');
+            }
+
+            if ($request->file('svg_file')) {
+                $svg_path = $request->file('svg_file')->store('frames/svg', 'public');
             }
 
         /* ----------------------------
@@ -122,6 +130,8 @@ class FrameController extends Controller
             'border_width'      => $request->border_width,
             'border_radius'     => $request->border_radius ?? 0,
 
+            'frame_type'        => $request->frame_type ?? 'geometry',
+            'svg_path'          => $svg_path ?? null,
              'thumbnail'     => $thumbnailPath,
             'is_active'         => $request->boolean('is_active'),
         ];
@@ -202,7 +212,7 @@ class FrameController extends Controller
         $request->validate([
             'name'          => 'nullable|string|max:255',
             'material_type' => 'required|string|in:wood,metal,glass',
-            'frame_texture' => 'required|image|mimes:jpg,jpeg,png,webp|max:4096',
+            'frame_texture' => 'required|image|mimes:jpg,jpeg,png,webp,svg|max:4096',
             'is_default'    => 'nullable|boolean',
             'is_active'     => 'nullable|boolean',
         ]);

@@ -44,6 +44,10 @@ let frameTextureEl = null;
 let textObjects = [];
 let currentText = null;
 
+let svgFrameOuter = null;
+let svgClipPath = null;
+
+
 /* ===============================
    HELPERS
 ================================ */
@@ -135,6 +139,18 @@ canvas.on('selection:cleared', () => {
    LOAD FRAME
 ================================ */
 function loadFrame(frame) {
+
+    // RESET CANVAS STATE
+    canvas.clear();
+    frameOuter = frameInner = matLayer = null;
+    currentImage = null;
+
+    // 🔥 SVG FRAME (DISPLAY ONLY)
+    if (frame.frame_type === 'svg') {
+        renderSvgFrame(frame);
+        return;
+    }
+
     frameTextureEl = null;
 
     if (frame.frame_texture_id && frame.texture?.texture_path) {
@@ -474,7 +490,9 @@ enforceLayerOrder();
 ================================ */
 document.getElementById('imageUpload')?.addEventListener('change', e => {
     const file = e.target.files[0];
-    if (!file || !frameInner) return;
+    // if (!file || !frameInner) return;
+    if (!file || (!frameInner && !svgClipPath)) return;
+
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -491,16 +509,46 @@ document.getElementById('imageUpload')?.addEventListener('change', e => {
     reader.readAsDataURL(file);
 });
 
+
 function fitImage(img) {
-    const b = frameInner.getBoundingRect();
-    const scale = Math.max(b.width / img.width, b.height / img.height);
+
+    let bounds = null;
+
+    if (frameInner) {
+        bounds = frameInner.getBoundingRect();
+    }
+
+    if (svgClipPath) {
+        bounds = svgClipPath.getBoundingRect();
+    }
+
+    if (!bounds) return;
+
+    const scale = Math.max(
+        bounds.width / img.width,
+        bounds.height / img.height
+    );
+
     img.set({ scaleX: scale, scaleY: scale });
 }
 
+
+
 function applyClip() {
-    if (!currentImage || !frameInner) return;
-    currentImage.clipPath = cloneClip();
+
+    if (!currentImage) return;
+
+    // 🔵 Geometry frame
+    if (frameInner) {
+        currentImage.clipPath = cloneClip();
+    }
+
+    // 🟣 SVG frame
+    if (svgClipPath) {
+        currentImage.clipPath = fabric.util.object.clone(svgClipPath);
+    }
 }
+
 
 // Get currently active text object
 function getActiveText() {
@@ -580,11 +628,54 @@ document.addEventListener('keydown', e => {
     }
 });
 
+// render SVG frame only (for SVG type frames)
+function renderSvgFrame(frame) {
+
+    fabric.loadSVGFromURL('/storage/' + frame.svg_path, (objects, options) => {
+
+        const svgGroup = fabric.util.groupSVGElements(objects, options);
+
+        const maxSize = 320;
+        const scale = maxSize / Math.max(svgGroup.width, svgGroup.height);
+
+        svgGroup.set({
+            left: CENTER,
+            top: CENTER,
+            originX: 'center',
+            originY: 'center',
+            scaleX: scale,
+            scaleY: scale,
+            selectable: false,
+            evented: false
+        });
+
+        // 🔵 Visible SVG frame
+        svgFrameOuter = svgGroup;
+
+        // 🔥 Clone SVG for clipPath
+        svgClipPath = fabric.util.object.clone(svgGroup);
+        svgClipPath.set({
+            absolutePositioned: true
+        });
+
+        canvas.add(svgFrameOuter);
+        canvas.renderAll();
+    });
+}
+
+
+
 /* ===============================
    DOWNLOAD
 ================================ */
 document.getElementById('downloadBtn').addEventListener('click', () => {
-    const b = frameOuter.getBoundingRect(true, true);
+    // const b = frameOuter.getBoundingRect(true, true);
+
+    const target = frameOuter || svgFrameOuter;
+    if (!target) return;
+
+    const b = target.getBoundingRect(true, true);
+
 
     const prevShadow = frameOuter.shadow;
     frameOuter.shadow = null;

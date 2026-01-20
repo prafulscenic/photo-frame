@@ -12,7 +12,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 
+<style>
+    .frame-thumb-wrapper {
+    width: 100%;
+    height: 300px;       /* SAME HEIGHT FOR ALL */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
+.frame-thumb {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;  /* no crop */
+}
+
+</style>
 </head>
 <body>
 
@@ -98,7 +113,7 @@
 
 </div> --}}
 @include('header')
-<div class="container py-5">
+{{-- <div class="container py-5">
 
     <!-- Header -->
     <div class="text-center mb-5">
@@ -212,12 +227,168 @@
 
     </div>
 
+</div> --}}
+<div class="container py-5">
+
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h3 class="fw-bold">Choose Your Frame</h3>
+        <p class="text-muted">Select a frame to start customizing</p>
+    </div>
+
+    <!-- Frames Grid -->
+    <div class="row g-3" id="frameList">
+        <!-- JS will populate frames here -->
+    </div>
+
+</div>
+<div class="modal fade"
+     id="frameEditorModal"
+     tabindex="-1"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false"
+     data-bs-focus="false">
+
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+
+            <!-- Modal Header -->
+            <div class="modal-header px-4 py-3 border-bottom bg-white">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0">
+                        Customize Your Frame
+                    </h5>
+                    <small class="text-muted">
+                        Upload image, add text, and export
+                    </small>
+                </div>
+
+                <button type="button"
+                        class="btn-close ms-auto"
+                        data-bs-dismiss="modal"></button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body p-0">
+
+                <div class="row g-0">
+
+                    <!-- LEFT: Preview -->
+                    <div class="col-md-7 bg-light">
+
+                        <div class="h-100 d-flex flex-column align-items-center justify-content-center p-4">
+
+                            <span class="badge bg-secondary-subtle text-secondary mb-3">
+                                Live Preview
+                            </span>
+
+                            <div class="bg-white p-4 rounded-4 shadow-sm border">
+
+                                <canvas id="canvas"
+                                        width="400"
+                                        height="400"
+                                        class="border rounded-3"
+                                        style="border:2px solid #333">
+                                </canvas>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- RIGHT: Controls -->
+                    <div class="col-md-5">
+
+                        <div class="h-100 d-flex flex-column p-4">
+
+                            <!-- Upload -->
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold text-uppercase small text-muted mb-2">
+                                    Image
+                                </label>
+
+                                <input type="file"
+                                       id="imageUpload"
+                                       class="form-control"
+                                       accept="image/*">
+                            </div>
+
+                            <!-- Text Options -->
+                            <div class="mb-4">
+
+                                <label class="form-label fw-semibold text-uppercase small text-muted mb-2">
+                                    Text Customization
+                                </label>
+
+                                <div class="card border-0 shadow-sm rounded-4">
+                                    <div class="card-body d-grid gap-3">
+
+                                        <button id="addTextBtn"
+                                                class="btn btn-primary w-100">
+                                            Add Text
+                                        </button>
+
+                                        <div class="d-flex gap-2">
+
+                                            <input type="color"
+                                                   id="textColorPicker"
+                                                   class="form-control form-control-color">
+
+                                            <select id="fontFamilySelect"
+                                                    class="form-select">
+                                                <option value="">Font Family</option>
+                                                <option value="Poppins">Poppins</option>
+                                                <option value="Playfair Display">
+                                                    Playfair Display
+                                                </option>
+                                                <option value="Dancing Script">
+                                                    Dancing Script
+                                                </option>
+                                            </select>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- Spacer -->
+                            <div class="flex-grow-1"></div>
+
+                            <!-- Download -->
+                            <div class="pt-3 border-top">
+
+                                <button id="downloadBtn"
+                                        class="btn btn-success btn-lg w-100">
+                                    Download PNG
+                                </button>
+
+                                <small class="text-muted d-block text-center mt-2">
+                                    High-quality export
+                                </small>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
 </div>
 
 
 
-{{-- <script src="{{asset('js/new-editor.js')}}"></script> --}}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{asset('js/new-editor.js')}}"></script>
+
 
 </body>
 </html>

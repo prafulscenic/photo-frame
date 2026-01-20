@@ -212,16 +212,37 @@
                         <input type="text" name="name" class="form-control" required>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">Frame Type</label>
+                        <select name="frame_type" id="frameTypeSelect" class="form-select" required>
+                            <option value="geometry" selected>Geometry</option>
+                            <option value="svg">SVG (Custom Shape)</option>
+                        </select>
+                    </div>
+
+
                     {{-- Shape --}}
                     <div class="mb-3">
                         <label class="form-label">Shape</label>
-                        <select name="shape" id="shapeSelect" class="form-select" required>
+                        <select name="shape" id="shapeSelect" class="form-select">
                             <option value="">Select Shape</option>
                             <option value="rectangle">Rectangle</option>
                             <option value="circle">Circle</option>
                             <option value="polygon">Polygon</option>
                         </select>
                     </div>
+
+                    <div class="mb-3 d-none" id="svgUploadWrapper">
+                        <label class="form-label">Upload SVG Frame</label>
+                        <input type="file"
+                            name="svg_file"
+                            class="form-control"
+                            accept=".svg">
+                        <small class="text-muted">
+                            Upload single-path SVG only
+                        </small>
+                    </div>
+
 
                     {{-- Polygon --}}
                     <div class="mb-3 d-none" id="polygonSidesWrapper">
@@ -247,7 +268,7 @@
                     {{-- Border Width --}}
                     <div class="mb-3">
                         <label class="form-label">Border Width</label>
-                        <select name="border_width" class="form-select" required>
+                        <select name="border_width" class="form-select">
                             <option value="0">0 px</option>
                             <option value="3">3 px</option>
                             <option value="5">5 px</option>
@@ -265,7 +286,7 @@
                     {{-- FRAME STYLE --}}
                     <div class="mb-3">
                         <label class="form-label">Frame Style</label>
-                        <select name="frame_style_type" id="frameStyleType" class="form-select" required>
+                        <select name="frame_style_type" id="frameStyleType" class="form-select">
                             <option value="">Select Style</option>
                             <option value="color">Solid Color</option>
                             <option value="texture">Texture / Material</option>
@@ -349,6 +370,29 @@ document.getElementById('frameStyleType').addEventListener('change', function ()
     document.getElementById('textureWrapper')
         .classList.toggle('d-none', this.value !== 'texture');
 });
+
+
+const frameTypeSelect = document.getElementById('frameTypeSelect');
+const svgWrapper = document.getElementById('svgUploadWrapper');
+
+// geometry-related wrappers
+const geometryFields = [
+    document.getElementById('shapeSelect')?.closest('.mb-3'),
+    document.getElementById('polygonSidesWrapper'),
+    document.getElementById('aspectRatioWrapper')
+];
+
+frameTypeSelect.addEventListener('change', () => {
+    const isSvg = frameTypeSelect.value === 'svg';
+
+    svgWrapper.classList.toggle('d-none', !isSvg);
+
+    geometryFields.forEach(el => {
+        if (!el) return;
+        el.classList.toggle('d-none', isSvg);
+    });
+});
+
 </script>
 
 

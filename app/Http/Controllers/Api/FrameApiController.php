@@ -20,6 +20,7 @@ class FrameApiController extends Controller
                 'id',
                 'name',
                 'shape',
+                'frame_type',
                 'aspect_ratio',
                 'frame_width',
                 'frame_height',
@@ -30,6 +31,7 @@ class FrameApiController extends Controller
                 'frame_texture',
                 'frame_texture_id',
                 'border_radius',
+                'svg_path',
             ]);
 
         return response()->json([

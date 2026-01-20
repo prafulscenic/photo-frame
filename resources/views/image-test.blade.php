@@ -26,8 +26,6 @@
 }
 
 
-
-
 </style>
 </head>
 <body>
@@ -47,7 +45,7 @@
 <br>
 <div class="position-relative d-inline-block">
     <img src="{{ asset('wall.jpg') }}" alt="Wall Image" class="img-fluid">
-    <img src="{{ asset('photo-frame (6).png') }}" alt="Frame" class="frame2">
+    <img src="{{ asset('heart.png') }}" alt="Frame" class="frame2">
 </div>
 
 
