@@ -131,6 +131,9 @@ function resetCanvas() {
     currentImage = null;
     currentText = null;  
 
+    let originalImageBase64 = null;
+
+
     // 🔥 Reset file input (VERY IMPORTANT)
     const fileInput = document.getElementById('imageUpload');
     if (fileInput) fileInput.value = '';
@@ -450,6 +453,8 @@ document.getElementById('imageUpload')?.addEventListener('change', e => {
     reader.readAsDataURL(file);
 });
 
+
+
 function fitImage(img) {
     const bounds = frameInner
         ? frameInner.getBoundingRect()
@@ -580,6 +585,9 @@ document.getElementById('downloadBtn')?.addEventListener('click', () => {
     a.href = url;
     a.download = 'photo-frame.png';
     a.click();
+
+    
 });
+
 
 

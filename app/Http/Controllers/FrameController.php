@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Frame;
+use App\Models\FrameOrder;
 use App\Models\FrameTexture;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class FrameController extends Controller
 {
@@ -238,4 +241,162 @@ class FrameController extends Controller
     }
 
 
+
+
+    public function storeOrder(Request $request)
+    {
+        dd($request->all());
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email',
+            'frame_id' => 'required|exists:frames,id',
+            'frame_size' => 'required|string',
+            'frame_thickness' => 'required|string',
+            'uploaded_image' => 'required|string',
+            'canvas_json' => 'required|string',
+            'final_frame_image' => 'required|string',
+        ]);
+
+        $uploadedPath = $this->saveBase64Image(
+            $data['uploaded_image'],
+            'orders/original'
+        );
+
+        $finalPath = $this->saveBase64Image(
+            $data['final_frame_image'],
+            'orders/final'
+        );
+
+        FrameOrder::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'frame_id' => $data['frame_id'],
+            'frame_size' => $data['frame_size'],
+            'frame_thickness' => $data['frame_thickness'],
+            'uploaded_image' => $uploadedPath,
+            'final_frame_image' => $finalPath,
+            'canvas_json' => $request->canvas_json,
+            'status' => 'pending',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order saved successfully'
+        ]);
+    }
+
+    // private function saveBase64Image(string $base64, string $folder): string
+    // {
+    //     [$meta, $content] = explode(',', $base64);
+
+    //     $extension = str_contains($meta, 'jpeg') ? 'jpg'
+    //                : (str_contains($meta, 'webp') ? 'webp' : 'png');
+
+    //     $filename = $folder.'/'.uniqid().'.'.$extension;
+
+    //     Storage::disk('public')->put(
+    //         $filename,
+    //         base64_decode($content)
+    //     );
+
+    //     return $filename;
+    // }
+
+    private function saveBase64Image($base64, $folder)
+{
+    $image = preg_replace('/^data:image\/\w+;base64,/', '', $base64);
+    $image = base64_decode($image);
+
+    $fileName = uniqid() . '.png';
+    $path = $folder . '/' . $fileName;
+
+    \Storage::disk('public')->put($path, $image);
+
+    return $path;
 }
+
+
+ 
+
+    public function orderList(Request $request)
+    {
+        $orders = FrameOrder::with('frame')->orderBy('created_at', 'desc')->get();
+
+        return view('orders.order_list', compact('orders'));
+    }
+
+
+    /**
+     * Show checkout page
+     */
+    public function indexCheckout(Request $request)
+    {
+        return view('checkout', [
+            'frame_id'        => $request->frame_id,
+            'frame_size'      => $request->frame_size,
+            'frame_thickness' => $request->frame_thickness,
+            'quantity'        => $request->quantity,
+            'price'           => $request->price,
+        ]);
+    }
+
+    /**
+     * Save final order
+     */
+    public function storeCheckout(Request $request)
+    {
+    //   dd($request->all());
+        // ✅ Validate checkout form only
+        $request->validate([
+            'frame_id'        => 'required|integer',
+            'frame_size'      => 'required|string',
+            'frame_thickness' => 'required|string',
+            'quantity'        => 'required|integer|min:1',
+            'price'           => 'required|integer|min:0',
+
+            'name'            => 'required|string|max:255',
+            'email'           => 'required|email',
+            'phone'           => 'required|string|max:20',
+            'address'         => 'required|string',
+
+            'uploaded_image_base64' => 'required|string',
+           'final_image_base64'    => 'required|string', 
+        ]);
+
+            // ✅ Save images
+        $uploadedPath = $this->saveBase64Image(
+            $request->uploaded_image_base64,
+            'orders/original'
+        );
+
+        $finalPath = $this->saveBase64Image(
+            $request->final_image_base64,
+            'orders/final'
+        );
+
+        // ✅ Save directly (NO session)
+        FrameOrder::create([
+            'frame_id'        => $request->frame_id,
+            'frame_size'      => $request->frame_size,
+            'frame_thickness' => $request->frame_thickness,
+            'price'           => $request->price,
+
+            // user details
+            'name'            => $request->name,
+            'email'           => $request->email,
+            'phone'           => $request->phone,
+            'address'         => $request->address,
+
+            'uploaded_image'    => $uploadedPath,
+            'final_frame_image' => $finalPath,
+
+            'status'          => 'pending',
+        ]);
+
+        // ✅ Redirect to success / home
+        return redirect()->route('frame.order.list')
+            ->with('success', 'Order placed successfully!');
+    }
+}
+
+

@@ -34,4 +34,9 @@ class Frame extends Model
         return $this->belongsTo(FrameTexture::class, 'frame_texture_id');
     }
 
+    public function orders()
+    {
+        return $this->hasMany(FrameOrder::class);
+    }
+
 }

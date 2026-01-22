@@ -26,7 +26,7 @@
                     </li>
 
                     <li class="nav-item">
-                        <a class="nav-link fs-5" href="{{ route('textures.list') }}">Textures</a>
+                        <a class="nav-link fs-5" href="{{ route('frame.order.list') }}">Orders</a>
                     </li>
                 </ul>
             </div>

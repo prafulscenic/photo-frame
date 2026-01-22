@@ -39,13 +39,13 @@
 <br>
 <div class="position-relative d-inline-block">
     <img src="{{ asset('wall.jpg') }}" alt="Wall Image" class="img-fluid">
-    <img src="{{ asset('baby-pic.png') }}" alt="Frame" class="frame2">
+    <img src="{{ asset('dog1.png') }}" alt="Frame" class="frame2">
 </div>
 
 <br>
 <div class="position-relative d-inline-block">
     <img src="{{ asset('wall.jpg') }}" alt="Wall Image" class="img-fluid">
-    <img src="{{ asset('heart.png') }}" alt="Frame" class="frame2">
+    <img src="{{ asset('dog2.png') }}" alt="Frame" class="frame2">
 </div>
 
 
